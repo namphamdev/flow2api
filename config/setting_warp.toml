@@ -34,10 +34,6 @@ log_requests = true
 log_responses = true
 mask_token = true
 
-[proxy]
-proxy_enabled = false
-proxy_url = ""
-
 [generation]
 image_timeout = 300
 video_timeout = 1500
