@@ -34,6 +34,10 @@ log_requests = true
 log_responses = true
 mask_token = true
 
+[proxy]
+proxy_enabled = false
+proxy_url = ""
+
 [generation]
 image_timeout = 300
 video_timeout = 1500
@@ -48,10 +52,6 @@ error_ban_threshold = 3
 enabled = false
 timeout = 7200  # 缓存超时时间(秒), 默认2小时
 base_url = ""   # 缓存文件访问的基础URL, 留空则使用服务器地址
-
-[proxy]
-proxy_enabled = true
-proxy_url = "socks5://warp:1080"
 
 [captcha]
 captcha_method = "personal"  # 打码方式: yescaptcha/browser/personal/remote_browser
