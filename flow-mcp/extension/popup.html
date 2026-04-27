@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Flow MCP Bridge</title>
+  <style>
+    body { font: 13px system-ui, sans-serif; padding: 12px; width: 320px; }
+    button { margin-top: 10px; padding: 6px 10px; }
+    .status { margin-top: 10px; padding: 6px; border-radius: 4px; word-break: break-word; }
+    .ok  { background: #e7fbe9; color: #065f12; }
+    .bad { background: #fde7e7; color: #7f0c0c; }
+    .hint { color: #666; font-size: 11px; margin-top: 4px; }
+    code { background: #f3f3f3; padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h3 style="margin:0 0 6px 0">Flow MCP Bridge</h3>
+  <div class="hint">
+    Connects to the local Native Messaging host
+    <code>com.flow_mcp.host</code>, which in turn serves any number of
+    bridge processes (Claude, Cursor, Cline, ...).
+  </div>
+
+  <div id="status" class="status"></div>
+
+  <button id="reconnect">Reconnect</button>
+  <div class="hint">
+    If status stays red, run the install script in
+    <code>flow-mcp/native-host</code> with this extension's ID
+    (visible on <code>chrome://extensions</code>).
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

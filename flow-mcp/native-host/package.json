@@ -1,0 +1,13 @@
+{
+  "name": "flow-mcp-native-host",
+  "version": "0.1.0",
+  "description": "Chrome Native Messaging host for flow-mcp. Owns the WebSocket server that bridge processes connect to, and proxies traffic to the extension over native messaging stdio.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "flow-mcp-native-host": "host.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

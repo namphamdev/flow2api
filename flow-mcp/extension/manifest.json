@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Flow MCP Bridge",
+  "version": "0.2.0",
+  "description": "Exposes the labs.google Flow API to local MCP clients via a Native Messaging host. Uses your own logged-in session; no captcha solving, no spoofing.",
+  "minimum_chrome_version": "120",
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs",
+    "alarms",
+    "cookies",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://labs.google/*",
+    "https://aisandbox-pa.googleapis.com/*",
+    "https://www.google.com/*",
+    "https://*.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Flow MCP Bridge",
+    "default_popup": "popup.html"
+  }
+}

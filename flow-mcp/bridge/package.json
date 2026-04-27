@@ -1,0 +1,25 @@
+{
+  "name": "flow-mcp-bridge",
+  "version": "0.1.0",
+  "description": "Local MCP server that bridges AI agents to a Chrome extension acting on the user's labs.google session.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "flow-mcp-bridge": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsc -w -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2"
+  }
+}
