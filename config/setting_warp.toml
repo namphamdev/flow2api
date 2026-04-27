@@ -35,8 +35,8 @@ log_responses = true
 mask_token = true
 
 [proxy]
-proxy_enabled = false
-proxy_url = ""
+proxy_enabled = true
+proxy_url = "socks5://warp:1080"
 
 [generation]
 image_timeout = 300
@@ -54,7 +54,7 @@ timeout = 7200  # 缓存超时时间(秒), 默认2小时
 base_url = ""   # 缓存文件访问的基础URL, 留空则使用服务器地址
 
 [captcha]
-captcha_method = "personal"  # 打码方式: yescaptcha/browser/personal/remote_browser
+captcha_method = "yescaptcha"  # 打码方式: yescaptcha/browser/personal/remote_browser
 browser_recaptcha_settle_seconds = 1.0  # 打码完成额外稳态等待，速度优先可设 1.0
 browser_launch_background = true  # browser 打码默认后台启动(最小化/避免抢占前台)
 
