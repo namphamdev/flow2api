@@ -88,6 +88,78 @@ async function findOrOpenProjectTab(projectId) {
   return tab;
 }
 
+// Run a fetch() inside the labs.google project tab (MAIN world) so the browser
+// automatically attaches Origin: https://labs.google and Referer: https://labs.google/.
+// The aisandbox-pa.googleapis.com edge rejects access tokens issued for labs.google
+// when the request comes from any other origin (returns the Google "Sorry..." 403 HTML).
+async function findAnyProjectTab() {
+  const tabs = await chrome.tabs.query({ url: `${FLOW_PROJECT_URL_PREFIX}*` });
+  if (tabs[0]) return tabs[0];
+  // Fallback: any labs.google tab works for Origin/Referer purposes.
+  const labsTabs = await chrome.tabs.query({ url: "https://labs.google/*" });
+  if (labsTabs[0]) return labsTabs[0];
+  // Last resort: open the Flow dashboard in a background tab.
+  const tab = await chrome.tabs.create({ url: "https://labs.google/fx/tools/flow", active: false });
+  await new Promise((resolve) => {
+    const listener = (tabId, info) => {
+      if (tabId === tab.id && info.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+  return tab;
+}
+
+async function pageFetch(projectId, { url, method = "POST", headers = {}, body }) {
+  const tab = projectId
+    ? await findOrOpenProjectTab(projectId)
+    : (await findAnyProjectTab());
+  if (!tab) throw new Error("pageFetch: no labs.google tab available");
+  const [{ result } = {}] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    world: "MAIN",
+    args: [{ url, method, headers, body }],
+    func: async ({ url, method, headers, body }) => {
+      try {
+        const r = await fetch(url, {
+          method,
+          credentials: "include",
+          headers,
+          body: method === "GET" ? undefined : body,
+        });
+        const text = await r.text();
+        return { ok: r.ok, status: r.status, text };
+      } catch (e) {
+        return { ok: false, status: 0, text: String(e?.message || e) };
+      }
+    },
+  });
+  if (!result) throw new Error("pageFetch: no result from executeScript");
+  if (!result.ok) {
+    throw new Error(`api ${url} ${result.status}: ${String(result.text).slice(0, 400)}`);
+  }
+  return result.text ? JSON.parse(result.text) : {};
+}
+
+// Convenience wrapper that mirrors `api()` but routes through the labs.google page.
+async function apiViaPage(projectId, path, body, { method = "POST" } = {}) {
+  const at = await getAccessToken();
+  return pageFetch(projectId, {
+    url: `${API_BASE}${path}`,
+    method,
+    headers: {
+      Authorization: `Bearer ${at}`,
+      // Match the real browser request exactly: text/plain avoids CORS preflight
+      // and is what the labs.google web app sends.
+      "Content-Type": "text/plain;charset=UTF-8",
+      Accept: "*/*",
+    },
+    body: method === "GET" ? undefined : JSON.stringify(body ?? {}),
+  });
+}
+
 async function getRecaptchaToken(projectId, action) {
   const tab = await findOrOpenProjectTab(projectId);
   // ask the page for a token
@@ -178,22 +250,22 @@ export const ops = {
 
   async generate_image({ projectId, prompt, modelName, aspectRatio, upsample, imageInputs }) {
     const recaptchaToken = await getRecaptchaToken(projectId, "IMAGE_GENERATION");
-    const sessionId = generateSessionId();
+    const sessionId = `;${Date.now()}`;
     const clientContext = {
       recaptchaContext: { token: recaptchaToken, applicationType: "RECAPTCHA_APPLICATION_TYPE_WEB" },
-      sessionId,
       projectId,
       tool: "PINHOLE",
+      sessionId,
     };
     const requestData = {
       clientContext,
-      seed: Math.floor(Math.random() * 999999) + 1,
       imageModelName: modelName,
       imageAspectRatio: aspectRatio,
       structuredPrompt: { parts: [{ text: prompt }] },
+      seed: Math.floor(Math.random() * 999999) + 1,
       imageInputs: imageInputs || [],
     };
-    const r = await api(`/projects/${projectId}/flowMedia:batchGenerateImages`, {
+    const r = await apiViaPage(projectId, `/projects/${projectId}/flowMedia:batchGenerateImages`, {
       clientContext,
       mediaGenerationContext: { batchId: crypto.randomUUID() },
       useNewMedia: true,
@@ -208,7 +280,7 @@ export const ops = {
       if (generated[0]) {
         const mediaId = generated[0]?.mediaGenerationId || generated[0]?.media?.name;
         if (mediaId) {
-          const up = await api("/flow/upsampleImage", {
+          const up = await apiViaPage(projectId, "/flow/upsampleImage", {
             clientContext,
             mediaGenerationId: mediaId,
             resolution: typeof upsample === "string" ? upsample : upsample.resolution,
@@ -224,13 +296,13 @@ export const ops = {
     projectId, prompt, videoType, modelKey, aspectRatio, imageInputs, useV2ModelConfig, upsample, userPaygateTier,
   }) {
     const recaptchaToken = await getRecaptchaToken(projectId, "VIDEO_GENERATION");
-    const sessionId = generateSessionId();
+    const sessionId = `;${Date.now()}`;
     const sceneId = crypto.randomUUID();
     const clientContext = {
       recaptchaContext: { token: recaptchaToken, applicationType: "RECAPTCHA_APPLICATION_TYPE_WEB" },
-      sessionId,
       projectId,
       tool: "PINHOLE",
+      sessionId,
       userPaygateTier: userPaygateTier || "PAYGATE_TIER_ONE",
     };
 
@@ -305,12 +377,12 @@ export const ops = {
       requests: [requestData],
       ...(useV2ModelConfig ? { useV2ModelConfig: true, mediaGenerationContext: { batchId: crypto.randomUUID() } } : {}),
     };
-    const r = await api(url, body);
+    const r = await apiViaPage(projectId, url, body);
     return { ...r, _upsample: upsample || null };
   },
 
   async poll_video({ operations }) {
-    return api("/video:batchCheckAsyncVideoGenerationStatus", { operations });
+    return apiViaPage(null, "/video:batchCheckAsyncVideoGenerationStatus", { operations });
   },
 
   async wait_video({ operations, timeoutMs = 25 * 60_000 }, sendProgress) {
@@ -319,7 +391,7 @@ export const ops = {
     let interval = 5000;
     while (true) {
       if (Date.now() - start > timeoutMs) throw new Error("wait_video timed out");
-      const r = await api("/video:batchCheckAsyncVideoGenerationStatus", { operations: ops });
+      const r = await apiViaPage(null, "/video:batchCheckAsyncVideoGenerationStatus", { operations: ops });
       const list = r?.operations || [];
       const allDone = list.every((o) => {
         const s = o?.status || o?.operation?.metadata?.status;
