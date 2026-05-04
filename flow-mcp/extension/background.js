@@ -7,6 +7,7 @@ import { ops } from "./flow_api.js";
 const NATIVE_HOST = "com.flow_mcp.host";
 
 let port = null;
+let connecting = false;
 let backoff = 1000;
 
 async function setStatus(connected, info = "") {
@@ -64,9 +65,12 @@ function handleMessage(msg) {
 }
 
 function connect() {
+  if (connecting) return;
+  connecting = true;
   try {
     port = chrome.runtime.connectNative(NATIVE_HOST);
   } catch (e) {
+    connecting = false;
     setStatus(false, `connectNative threw: ${e?.message}`);
     scheduleReconnect();
     return;
@@ -77,6 +81,7 @@ function connect() {
   } catch {}
   port.onMessage.addListener(handleMessage);
   port.onDisconnect.addListener(() => {
+    connecting = false;
     const err = chrome.runtime.lastError?.message || "disconnected";
     setStatus(false, `native host disconnected: ${err}`);
     port = null;
@@ -85,17 +90,21 @@ function connect() {
   // initial status (may be overridden by `ready` from host)
   setStatus(true, "native host connecting");
   backoff = 1000;
+  connecting = false;
 }
 
+let reconnectTimer = null;
+
 function scheduleReconnect() {
-  setTimeout(connect, backoff);
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connect, backoff);
   backoff = Math.min(backoff * 2, 15000);
 }
 
 // keep service worker alive while we have an open port
 chrome.alarms.create("keepalive", { periodInMinutes: 0.4 });
 chrome.alarms.onAlarm.addListener((a) => {
-  if (a.name === "keepalive" && !port) connect();
+  if (a.name === "keepalive" && !port && !connecting) connect();
 });
 
 chrome.runtime.onStartup.addListener(connect);

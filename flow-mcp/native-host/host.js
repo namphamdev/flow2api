@@ -66,18 +66,37 @@ function log(msg) {
 // Only the first should bind the WS port; the others exit cleanly.
 
 function acquireLock() {
+  // First check if a valid lock already exists
   try {
     if (fs.existsSync(LOCK_FILE)) {
       const old = JSON.parse(fs.readFileSync(LOCK_FILE, "utf8"));
       if (old?.pid && isPidAlive(old.pid)) {
         return false;
       }
+      // Stale lock – remove it before trying to create ours
+      try { fs.unlinkSync(LOCK_FILE); } catch {}
     }
   } catch {}
+  // Atomic create-with-exclusive to win the race between concurrent spawns
   try {
-    fs.writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }), { mode: 0o600 });
+    const fd = fs.openSync(LOCK_FILE, "wx", 0o600);
+    fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+    fs.closeSync(fd);
     return true;
-  } catch {
+  } catch (e) {
+    if (e.code === "EEXIST") {
+      // Another process won the race; check if it's alive
+      try {
+        const old = JSON.parse(fs.readFileSync(LOCK_FILE, "utf8"));
+        if (old?.pid && isPidAlive(old.pid)) return false;
+        // Stale winner – retry once
+        try { fs.unlinkSync(LOCK_FILE); } catch {}
+        const fd2 = fs.openSync(LOCK_FILE, "wx", 0o600);
+        fs.writeFileSync(fd2, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+        fs.closeSync(fd2);
+        return true;
+      } catch { return false; }
+    }
     return false;
   }
 }
